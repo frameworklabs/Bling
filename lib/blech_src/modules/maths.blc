@@ -1,0 +1,48 @@
+// module:  maths
+// project: spook
+
+module exposes 
+    sinf, cosf, 
+    ceilf, floorf,
+    random, randomNat8, randomNat16, randomNat32, randomBool,
+    incModuloNat8
+
+@[CFunction (binding = "sinf($1)", header = "math.h")]
+extern function sinf (phi: float32) returns float32
+
+@[CFunction (binding = "cosf($1)", header = "math.h")]
+extern function cosf (phi: float32) returns float32
+
+@[CFunction (binding = "(blc_int32)ceilf($1)", header = "math.h")]
+extern function ceilf (val: float32) returns int32
+
+@[CFunction (binding = "(blc_int32)floorf($1)", header = "math.h")]
+extern function floorf (val: float32) returns int32
+
+@[CFunction (binding = "(blc_nat32)random()", header = "math.h")]
+extern function random () returns nat32
+
+function randomNat8 (max_incl: nat8) returns nat8
+    return (random() % (max_incl + 1)) as! nat8
+end
+
+function randomNat16 (max_incl: nat16) returns nat16
+    return (random() % (max_incl + 1)) as! nat16
+end
+
+function randomNat32 (max_incl: nat32) returns nat32
+    return random() % (max_incl + 1)
+end
+
+function randomBool () returns bool
+    return randomNat8(1) == 0
+end
+
+function incModuloNat8 (val: nat8, inc: int8, cnt: nat8) returns nat8
+    let nextVal: int16 = val as int16 + inc
+    if nextVal >= 0 then
+        return (nextVal % (cnt as int16)) as! nat8
+    else
+        return (cnt as int16 + nextVal) as! nat8
+    end
+end

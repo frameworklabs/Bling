@@ -1,0 +1,11 @@
+// module:  logging_types
+// project: spook
+
+module exposes Format
+
+struct Format
+    let newline: bool = true
+    let colon: bool = false
+    let comma: bool = false
+    let space: bool = false
+end

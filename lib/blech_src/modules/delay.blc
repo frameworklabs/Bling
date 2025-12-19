@@ -1,0 +1,49 @@
+// module:  delay
+// project: spook
+
+module exposes 
+    Delay, Delay_ms, Delay_s,
+    Clock, Clock_ms, Clock_s
+
+activity Delay (ticks: nat32)
+    var i = ticks
+    repeat
+        await true
+        i = i - 1
+    until i == 0 end
+end
+
+@[CFunction (binding = "spk_delay_ticks_for_ms($1)", header = "modules/delay.ext.h")]
+extern function ticks (milliseconds: nat32) returns nat32
+
+activity Delay_ms (milliseconds: nat32)
+    run Delay(ticks(milliseconds))
+end
+
+activity Delay_s (seconds: nat32)
+    let ms = seconds * 1000
+    run Delay_ms(ms)
+end
+
+activity Clock (freq: nat32) (clock: bool)
+    repeat
+        run Delay(freq - 1)
+        clock = true
+        await true
+        clock = false
+    end
+end
+
+activity Clock_ms (ms: nat32) (clock: bool)
+    repeat
+        run Delay_ms(ms)
+        clock = true
+        await true
+        clock = false
+    end
+end
+
+activity Clock_s (s: nat32) (clock: bool)
+    let ms = s * 1000
+    run Clock_ms(ms)(clock)
+end

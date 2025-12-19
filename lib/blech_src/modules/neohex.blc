@@ -1,0 +1,261 @@
+// module:  neohex
+// project: spook
+
+import color "/modules/color" exposes Color
+import maths "/modules/maths"
+
+module exposes 
+    MAIN_LAYER, OVERLAY_LAYER,
+    init, setOverlayActive, clear, show,
+    NUM_PIXELS, CENTER_PIXEL, incPixel, makeRandomPixel, drawPixel, isPixelCleared,
+    PixelVector, drawPixelVector, drawPixelVectorAt,
+    incPixelVectorIndex, makeRandomPixelVectorIndex,
+    NUM_STAR_RINGS, STAR_RINGS, incStarRingIndex,
+    NUM_GRID_ROWS, GRID, getRandomRow, 
+    GridPoint, makeRandomGridPoint, getGridPointInDir, getGridPointPixel, drawGridPoint,
+    NUM_GRID_DIRS, makeRandomGridDir, incGridDir,
+    NUM_RINGS, RINGS,
+    STARS,
+    Screen, drawPixelToScreen, drawPixelVectorToScreen, drawScreen, clearScreen
+
+// Common
+
+@[CConst (binding = "spk_neohex_MAIN_LAYER", header = "modules/neohex.ext.h")]
+extern const MAIN_LAYER: nat8
+
+@[CConst (binding = "spk_neohex_OVERLAY_LAYER", header = "modules/neohex.ext.h")]
+extern const OVERLAY_LAYER: nat8
+
+@[CFunction (binding = "spk_neohex_init()", header = "modules/neohex.ext.h")]
+extern singleton function init ()
+
+@[CFunction (binding = "spk_neohex_set_overlay_active($1)", header = "modules/neohex.ext.h")]
+extern singleton function setOverlayActive (active: bool)
+
+@[CFunction (binding = "spk_neohex_clear($1)", header = "modules/neohex.ext.h")]
+extern function clear (layer: nat8)
+
+@[CFunction (binding = "spk_neohex_show($1)", header = "modules/neohex.ext.h")]
+extern function show (layer: nat8)
+
+// Pixel based drawing
+
+const NUM_PIXELS: nat8 = 37 // Not an extern const as this would not be compile time constant
+
+const CENTER_PIXEL: nat8 = 18
+
+function incPixel (px: nat8, delta: int8) returns nat8
+    return maths.incModuloNat8(px, delta, NUM_PIXELS)
+end
+
+function makeRandomPixel () returns nat8
+    return maths.randomNat8(NUM_PIXELS - 1)
+end
+
+@[CFunction (binding = "spk_neohex_set_pixel_color($1, $2, $3)", header = "modules/neohex.ext.h")]
+extern function setPixelColor (px: nat16, color: nat32, layer: nat8)
+
+function drawPixel (px: nat8, color: Color, layer: nat8)
+    if px < NUM_PIXELS then
+        setPixelColor(px, color.value, layer)
+    end
+end
+
+@[CFunction (binding = "spk_neohex_get_pixel_color($1, $2)", header = "modules/neohex.ext.h")]
+extern function getPixelColor (px: nat16, layer: nat8) returns nat32
+
+function isPixelCleared (px: nat8, layer: nat8) returns bool
+    let col = getPixelColor(px, layer)
+    return col as bits32 & 0x00ffffff == 0
+end
+
+// Pixel vector based drawing
+
+struct PixelVector
+    var pixels: [NUM_PIXELS]nat8
+    var count: nat8
+end
+
+function drawPixelVector (pv: PixelVector, col: Color, layer: nat8)
+    var i: nat8 = 0
+    while i < pv.count repeat
+        drawPixel(pv.pixels[i], col, layer)
+        i = i + 1
+    end
+end
+
+function drawPixelVectorAt (pv: PixelVector, idx: nat8, col: Color, layer: nat8)
+    if idx < pv.count then
+        drawPixel(pv.pixels[idx], col, layer)
+    end
+end
+
+function incPixelVectorIndex (idx: nat8, delta: int8, pv: PixelVector) returns nat8
+    return maths.incModuloNat8(idx, delta, pv.count)
+end
+
+function makeRandomPixelVectorIndex (pv: PixelVector) returns nat8
+    return maths.randomNat8(pv.count - 1)
+end
+
+// Predefined pixel vectors
+
+const NUM_STAR_RINGS: nat8 = 4
+
+// Note: needs to be param to be able to be indexed by a variable
+param STAR_RINGS: [NUM_STAR_RINGS]PixelVector = {
+    { pixels = {18}, count = 1 },
+    { pixels = {11, 12, 17, 19, 24, 25}, count = 6 },
+    { pixels = { 5,  7, 16, 20, 29, 31}, count = 6 },
+    { pixels = { 0,  3, 15, 21, 33, 36}, count = 6 }
+}
+
+function incStarRingIndex (idx: nat8, delta: nat8) returns nat8
+    return maths.incModuloNat8(idx, delta as! int8, NUM_STAR_RINGS)
+end
+
+const NUM_GRID_ROWS: nat8 = 7
+
+param GRID: [NUM_GRID_ROWS]PixelVector = {
+    { pixels = { 0,  1,  2,  3}, count = 4 },
+    { pixels = { 4,  5,  6,  7,  8}, count = 5 }, 
+    { pixels = { 9, 10, 11, 12, 13, 14}, count = 6 }, 
+    { pixels = {15, 16, 17, 18, 19, 20, 21}, count = 7 }, 
+    { pixels = {22, 23, 24, 25, 26, 27}, count = 6 }, 
+    { pixels = {28, 29, 30, 31, 32}, count = 5 }, 
+    { pixels = {33, 34, 35, 36}, count = 4 },
+}
+
+struct GridPoint 
+    let row: nat8
+    let col: nat8
+end
+
+struct GridOffset
+    let rowOffset: int8
+    let colOffset: int8
+end
+
+const GRID_DIR_LEFT: nat8 = 0
+const GRID_DIR_LEFT_DOWN: nat8 = 1
+const GRID_DIR_RIGHT_DOWN: nat8 = 2
+const GRID_DIR_RIGHT: nat8 = 3
+const GRID_DIR_RIGHT_UP: nat8 = 4
+const GRID_DIR_LEFT_UP: nat8 = 5
+const NUM_GRID_DIRS: nat8 = 6
+
+function getRandomRow () returns PixelVector
+    let row = maths.randomNat8(NUM_GRID_ROWS - 1)
+    return GRID[row]
+end
+
+function makeRandomGridPoint () returns GridPoint
+    let row = maths.randomNat8(NUM_GRID_ROWS - 1)
+    return { row = row, col = maths.randomNat8(GRID[row].count - 1) }
+end
+
+function makeRandomGridDir () returns nat8
+    return maths.randomNat8(NUM_GRID_DIRS - 1)
+end
+
+function incGridDir (dir: nat8, off: int8) returns nat8
+    return maths.incModuloNat8(dir, off, NUM_GRID_DIRS)
+end
+
+function go (ro: int8, co: int8) returns GridOffset
+    return { rowOffset = ro, colOffset = co }
+end
+
+function getGridOffsetForDir (pt: GridPoint, dir: nat8) returns GridOffset
+    if dir == GRID_DIR_LEFT then 
+        return go(0, -1)
+    elseif dir == GRID_DIR_LEFT_DOWN then 
+        if pt.row < 3 then return go(1, 0) else return go(1, -1) end
+    elseif dir == GRID_DIR_RIGHT_DOWN then 
+        if pt.row < 3 then return go(1, 1) else return go(1, 0) end
+    elseif dir == GRID_DIR_RIGHT then 
+        return go(0, 1)
+    elseif dir == GRID_DIR_RIGHT_UP then
+        if pt.row <= 3 then return go(-1, 0) else return go(-1, 1) end
+    elseif dir == GRID_DIR_LEFT_UP then
+        if pt.row <= 3 then return go(-1, -1) else return go(-1, 0) end
+    else
+        return go(0, 0)  
+    end
+end
+
+function getGridPointInDir (pt: GridPoint, dir: nat8) (res: GridPoint) returns bool
+    let off = getGridOffsetForDir(pt, dir)
+    let newRow: int8 = pt.row as! int8 + off.rowOffset
+    let newCol: int8 = pt.col as! int8 + off.colOffset
+    if newRow < 0 or (newRow as! nat8) >= NUM_GRID_ROWS then
+        return false
+    end
+    if newCol < 0 or (newCol as! nat8) >= GRID[newRow].count then
+        return false
+    end
+    res = { row = newRow as! nat8, col = newCol as! nat8 }
+    return true
+end
+
+function getGridPointPixel (pt: GridPoint) returns nat8
+    return GRID[pt.row].pixels[pt.col]
+end
+
+function drawGridPoint (pt: GridPoint, col: Color, layer: nat8)
+    drawPixel(getGridPointPixel(pt), col, layer)
+end
+
+const NUM_RINGS: nat8 = 4
+
+param RINGS: [NUM_RINGS]PixelVector = {
+  { pixels = {18}, count = 1 },
+  { pixels = {17, 24, 25, 19, 12, 11}, count = 6 },
+  { pixels = {16, 23, 29, 30, 31, 26, 20, 13,  7,  6,  5, 10}, count = 12 },
+  { pixels = {15, 22, 28, 33, 34, 35, 36, 32, 27, 21, 14,  8,  3,  2,  1,  0,  4,  9},  count = 18 }
+}
+
+param STARS: [NUM_GRID_DIRS]PixelVector = {
+    { pixels = {18, 17, 16, 15}, count = 4 },
+    { pixels = {18, 24, 29, 33}, count = 4 },
+    { pixels = {18, 25, 31, 36}, count = 4 },
+    { pixels = {18, 19, 20, 21}, count = 4 },
+    { pixels = {18, 12,  7,  3}, count = 4 },
+    { pixels = {18, 11,  5,  0}, count = 4 }
+}
+
+// Screen
+
+struct Screen
+    var colors: [NUM_PIXELS]Color
+end
+
+function drawPixelToScreen (px: nat8, col: Color) (screen: Screen)
+    screen.colors[px] = col
+end
+
+function drawPixelVectorToScreen (pv: PixelVector, col: Color) (screen: Screen)
+    var i: nat8 = 0
+    while i < pv.count repeat
+        let px: nat8 = pv.pixels[i]
+        if px < NUM_PIXELS then
+            screen.colors[px] = col
+        end
+        i = i + 1
+    end
+end
+
+function drawScreen (screen: Screen, layer: nat8, callShow: bool)
+    var i: nat8 = 0
+    while i < NUM_PIXELS repeat
+        drawPixel(i, screen.colors[i], layer)
+        i = i + 1
+    end
+    if callShow then
+        show(layer)
+    end
+end
+
+function clearScreen () (screen: Screen)
+    screen.colors = {}
+end

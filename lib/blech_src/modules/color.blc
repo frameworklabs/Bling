@@ -1,0 +1,56 @@
+// module:  color
+// project: spook
+
+import maths "/modules/maths"
+
+module exposes 
+    Color,
+    BLACK, RED, YELLOW, GREEN, BLUE, WHITE,
+    makeRandomHue,
+    makeHSVColor, makeHueColor, makeRandomColor, makeWRGBColor, makeRGBColor, makeGrayColor
+
+struct Color
+    let value: nat32
+end
+
+const BLACK: Color = { value = 0x00_00_00 }
+const RED: Color = { value = 0xFF_00_00 }
+const YELLOW: Color = { value = 0xFF_00_FF }
+const GREEN: Color = { value = 0x00_FF_00 }
+const BLUE: Color = { value = 0x00_00_FF }
+const WHITE: Color = { value = 0xFF_FF_FF }
+
+function makeWRGBColor(white: nat8, red: nat8, green: nat8, blue: nat8) returns Color
+    let whiteBits = white as bits32 << 24
+    let redBits = red as bits32 << 16
+    let greenBits = green as bits32 << 8
+    let blueBits = blue as bits32
+    return { value = (whiteBits | redBits | greenBits | blueBits) as nat32 }
+end
+
+function makeRGBColor(red: nat8, green: nat8, blue: nat8) returns Color
+    return makeWRGBColor(0, red, green, blue)
+end
+
+function makeGrayColor(level: nat8) returns Color
+    return makeRGBColor(level, level, level)
+end
+
+@[CFunction (binding = "spk_neohex_make_hsv($1, $2, $3)", header = "modules/neohex.ext.h")]
+extern function makeHSV (hue: nat16, sat: nat8, val: nat8) returns nat32
+
+function makeRandomHue() returns nat16
+    return maths.randomNat16(0xFFFF)
+end
+
+function makeHSVColor(hue: nat16, sat: nat8, val: nat8) returns Color
+    return { value = makeHSV(hue, sat, val) }
+end
+
+function makeHueColor(hue: nat16) returns Color
+    return makeHSVColor(hue, 0xff, 0xff)
+end
+
+function makeRandomColor() returns Color
+    return makeHueColor(makeRandomHue())
+end

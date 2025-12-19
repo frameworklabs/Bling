@@ -1,0 +1,7 @@
+// module: speaker
+// project: spook
+
+module exposes playTone
+
+@[CFunction (binding = "spk_speaker_play_tone($1, $2)", header = "modules/speaker.ext.h")]
+extern function playTone (frequency: float32, duration_ms: nat32)

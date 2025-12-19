@@ -1,0 +1,13 @@
+// module:  string
+// project: spook
+
+module exposes String, isEmpty
+
+struct String
+    let ptr: nat32
+    let len: nat32
+end
+
+function isEmpty (str: String) returns bool
+    return str.len == 0
+end

@@ -1,0 +1,7 @@
+// module:  power
+// project: spook
+
+module exposes getBatteryLevel
+
+@[CFunction (binding = "spk_power_get_battery_level()", header = "modules/power.ext.h")]
+extern function getBatteryLevel () returns nat8

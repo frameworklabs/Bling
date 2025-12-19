@@ -1,0 +1,528 @@
+// project: Bling
+// copyright: 2025, Framework Labs
+
+import neo "/modules/neohex" exposes MAIN_LAYER, OVERLAY_LAYER
+import color "/modules/color" exposes Color
+import button "/modules/button"
+import maths "/modules/maths"
+import power "/modules/power"
+import speaker "/modules/speaker"
+import log "/modules/logging"
+import str "/modules/string"
+import delay "/modules/delay" exposes Delay_ms, Delay_s
+
+// Helpers
+
+activity Presenter (clock_ms: nat32, extraDelay: bool) (vsync: bool)
+    neo.clear(MAIN_LAYER)
+    neo.show(MAIN_LAYER)
+    repeat
+        run Delay_ms(clock_ms)
+        neo.clear(MAIN_LAYER)
+        vsync = true
+        await true
+        vsync = false
+        if extraDelay then
+            await true
+        end
+        neo.show(MAIN_LAYER)
+    end
+end
+
+// Effects
+
+activity Walk ()
+    var pixel: nat8 = 0
+    var hue: nat16 = color.makeRandomHue()
+    repeat
+        neo.clear(MAIN_LAYER)
+        neo.drawPixel(pixel, color.makeHueColor(hue), MAIN_LAYER)
+        neo.show(MAIN_LAYER)
+
+        pixel = neo.incPixel(pixel, 1)
+        if pixel == 0 then
+            hue = hue + 0x1000
+        end
+
+        run Delay_ms(40)
+    end
+end
+
+activity Star ()
+    repeat
+        let col: Color = color.makeRandomColor()
+        var ring: nat8 = 0
+        repeat
+            neo.clear(MAIN_LAYER)
+            neo.drawPixelVector(neo.STAR_RINGS[ring], col, MAIN_LAYER)
+            neo.show(MAIN_LAYER)
+
+            ring = neo.incStarRingIndex(ring, 1)
+
+            run Delay_ms(250)
+        until ring == 0 end
+    end
+end
+
+activity RandomDots ()
+    repeat
+        neo.clear(MAIN_LAYER)
+        neo.drawPixel(neo.makeRandomPixel(), color.makeRandomColor(), MAIN_LAYER)
+        neo.show(MAIN_LAYER)
+
+        run Delay_ms(100)
+    end
+end
+
+activity SnowFlake (vsync: bool)
+    repeat
+        let backoff_ms: nat32 = maths.randomNat32(2000)
+        run Delay_ms(backoff_ms)
+
+        let rowPV: neo.PixelVector = neo.getRandomRow()
+        var col: nat8 = 0
+        while col < rowPV.count repeat
+            await vsync
+            neo.drawPixelVectorAt(rowPV, col, color.WHITE, MAIN_LAYER)
+            col = col + 1
+        end
+    end
+end
+
+activity Snow ()
+    var vsync: bool
+    cobegin run Presenter(300, false)(vsync)
+    with run SnowFlake(vsync)
+    with run SnowFlake(vsync)
+    with run SnowFlake(vsync)
+    with run SnowFlake(vsync)
+    with run SnowFlake(vsync)
+    end
+end
+
+activity Rings ()
+    repeat
+        var screen: neo.Screen
+
+        var ringIdx: nat8 = 0
+        while ringIdx < neo.NUM_RINGS repeat
+            neo.drawPixelVectorToScreen(neo.RINGS[ringIdx], color.makeRandomColor())(screen)
+            neo.drawScreen(screen, MAIN_LAYER, true)
+            run Delay_ms(1000)
+
+            ringIdx = ringIdx + 1
+        end
+
+        var i: nat8 = 0
+        while i < 3 repeat
+            neo.clear(MAIN_LAYER)
+            neo.show(MAIN_LAYER)
+            run Delay_ms(400)
+
+            neo.drawScreen(screen, MAIN_LAYER, true)
+            run Delay_ms(400)
+
+            i = i + 1
+        end
+
+        run Delay_ms(1000)
+    end
+end
+
+activity Circle (ring: nat8, vsync: bool)
+    let pv: neo.PixelVector = neo.RINGS[ring]
+    let col: Color = color.makeRandomColor()
+    var delta: int8
+    if maths.randomBool() then delta = 1 else delta = -1 end
+    var idx: nat8 = neo.makeRandomPixelVectorIndex(pv)
+    repeat
+        await vsync
+        neo.drawPixelVectorAt(pv, idx, col, MAIN_LAYER)
+        idx = neo.incPixelVectorIndex(idx, delta, pv)
+    end
+end
+
+activity Circles ()
+    var vsync: bool
+    cobegin run Presenter(200, false)(vsync)
+    with run Circle(0, vsync)
+    with run Circle(1, vsync)
+    with run Circle(2, vsync)
+    with run Circle(3, vsync)
+    end
+end
+
+activity Fader (pv: neo.PixelVector, vsync: bool)
+    var level: nat8 = maths.randomNat8(255)
+    var delta: int8; if maths.randomBool() then delta = 8 else delta = -8 end
+
+    repeat
+        await vsync
+        neo.drawPixelVector(pv, color.makeGrayColor(level), MAIN_LAYER)
+        let newLevel: int16 = level as int16 + delta
+        if newLevel >= 255 then
+            level = 255
+            delta = -delta
+        elseif newLevel <= 0 then
+            level = 0
+            delta = -delta
+        else
+            level = newLevel as! nat8
+        end
+    end
+end
+
+
+activity Faders ()
+    param shape1: neo.PixelVector = { pixels = {15, 22, 23, 17, 10,  9}, count = 6 }
+    param shape2: neo.PixelVector = { pixels = { 1,  2,  6}, count = 3 }
+    param shape3: neo.PixelVector = { pixels = {19, 26, 27, 21, 14, 13}, count = 6 }
+    param shape4: neo.PixelVector = { pixels = {34, 35, 30}, count = 3 }
+
+    var vsync: bool
+    cobegin run Presenter(40, false)(vsync)
+    with run Fader(shape1, vsync)
+    with run Fader(shape2, vsync)
+    with run Fader(shape3, vsync)
+    with run Fader(shape4, vsync)
+    end
+end
+
+function tryDir (dir: nat8) (head: neo.GridPoint) returns bool
+    var nextHead: neo.GridPoint
+    let isValid = neo.getGridPointInDir(head, dir)(nextHead) 
+    if not isValid then
+        return false
+    end
+    if not neo.isPixelCleared(neo.getGridPointPixel(nextHead), MAIN_LAYER) then
+        return false
+    end
+    head = nextHead
+    return true
+end
+
+function progressHead () (head: neo.GridPoint, dir: nat8) returns bool
+    
+    // change dir randomly with probability = 0.2
+    if maths.randomNat8(100) <= 20 then
+        dir = neo.makeRandomGridDir()
+    end
+
+    let startDir = dir
+    var off: int8; if maths.randomBool() then off = -1 else off = 1 end
+    repeat
+        let isValidDir = tryDir(dir)(head)
+        if isValidDir then
+            return true
+        end
+        dir = neo.incGridDir(dir, off)
+    until dir == startDir end
+
+    return false
+end
+
+function addHead (head: neo.GridPoint, len: nat8) (tail: neo.PixelVector)
+    if tail.count >= len then
+        var i: nat8
+        while i < len - 1 repeat
+            tail.pixels[i] = tail.pixels[i + 1]
+            i = i + 1
+        end
+        tail.count = len - 1
+    end
+    tail.pixels[tail.count] = neo.getGridPointPixel(head)
+    tail.count = tail.count + 1
+end
+
+activity SingleShotSnake (vsync: bool)
+    let hue = color.makeRandomHue()
+    var head = neo.makeRandomGridPoint()
+    var tail: neo.PixelVector
+    var dir = neo.makeRandomGridDir()
+
+    repeat
+        await vsync
+        neo.drawPixelVector(tail, color.makeHSVColor(hue, 0xff, 0x80), MAIN_LAYER)
+ 
+        // let other snakes draw their tails first before drawing head
+        await true 
+        let didProgress = progressHead()(head, dir) 
+        if not didProgress then
+            return // dead
+        end
+        neo.drawGridPoint(head, color.makeHueColor(hue), MAIN_LAYER)
+        addHead(head, 3)(tail)
+    end
+end
+
+activity Snake (vsync: bool)
+    repeat
+        run SingleShotSnake(vsync)
+        run Delay_s(1)
+    end
+end
+
+activity Snakes ()
+    var vsync: bool
+    cobegin run Presenter(200, true)(vsync)      
+    with run Snake(vsync)
+    with run Snake(vsync)
+    end
+end
+
+const NUM_GRAND_FINAL_COLORS: nat8 = neo.NUM_GRID_DIRS + 1
+
+function fillRandomColors () (colors: [NUM_GRAND_FINAL_COLORS]Color)
+    var i: nat8
+    repeat
+        colors[i] = color.makeRandomColor()
+        i = i + 1
+    until i == NUM_GRAND_FINAL_COLORS end
+end
+
+function drawStars (ring: nat8, colors: [NUM_GRAND_FINAL_COLORS]Color, colorStart: nat8) (stars: [neo.NUM_GRID_DIRS]neo.PixelVector, screen: neo.Screen)
+    var dir: nat8
+    repeat                
+        stars[dir].count = ring + 1
+        let colorIndex: nat8 = (dir + colorStart) % neo.NUM_GRID_DIRS
+        neo.drawPixelVectorToScreen(stars[dir], colors[colorIndex])(screen)
+        neo.drawPixelToScreen(neo.CENTER_PIXEL, colors[neo.NUM_GRID_DIRS])(screen)
+        dir = dir + 1
+    until dir == neo.NUM_GRID_DIRS end
+    neo.drawScreen(screen, MAIN_LAYER, true)
+end
+
+activity GrandFinal ()
+    var screen: neo.Screen
+    var stars = neo.STARS
+    var colors: [NUM_GRAND_FINAL_COLORS]Color
+    repeat
+        fillRandomColors()(colors)
+
+        neo.clearScreen()(screen)
+        neo.drawScreen(screen, MAIN_LAYER, true)
+        run Delay_ms(500)
+
+        neo.drawPixelToScreen(neo.CENTER_PIXEL, colors[neo.NUM_GRID_DIRS])(screen)
+        neo.drawScreen(screen, MAIN_LAYER, true)
+        run Delay_ms(500)
+
+        var ring: nat8 = 1
+        repeat
+            drawStars(ring, colors, 0)(stars, screen)
+            run Delay_ms(500)
+
+            ring = ring + 1
+        until ring == 4 end
+
+        var flash: nat8
+        repeat
+            neo.clear(MAIN_LAYER)
+            neo.show(MAIN_LAYER)
+            run Delay_ms(200)
+
+            neo.drawScreen(screen, MAIN_LAYER, true)
+            run Delay_ms(200)
+
+            flash = flash + 1
+        until flash == 3 end
+
+        run Delay_ms(500)
+
+        var rot: nat8
+        repeat
+            drawStars(3, colors, rot)(stars, screen)
+            run Delay_ms(200)
+
+            rot = rot + 1
+        until rot == 20 end
+    end
+end
+
+// Control
+
+activity Script (progress: bool)
+    repeat
+        when progress abort run GrandFinal() end
+        when progress abort run Snakes() end
+        when progress abort run Faders() end
+        when progress abort run Circles() end
+        when progress abort run Rings() end
+        when progress abort run Snow() end
+        when progress abort run RandomDots() end
+        when progress abort run Star() end
+        when progress abort run Walk() end
+    end
+end
+
+activity DoubleToneGenerator (extended: bool)
+    speaker.playTone(4000, 100)
+    run Delay_ms(200)  
+    var dur = 100: nat32; if extended then dur = 200 end 
+    speaker.playTone(4000, dur)
+end
+
+activity TimedScript ()
+    var clock: bool
+    cobegin 
+        run delay.Clock_s(16)(clock)
+    with 
+        run Script(clock)
+    with // Audio
+        run DoubleToneGenerator(true)
+    end
+end
+
+activity ManualScript (press: nat8)
+    cobegin 
+        run Script(press == button.PRESS_SHORT)
+    with // Audio
+        when press == button.PRESS_SHORT abort
+            run DoubleToneGenerator(false)
+        end
+        repeat
+            if press != button.PRESS_SHORT then
+                await press == button.PRESS_SHORT
+            end
+            speaker.playTone(4000, 100)
+            await true
+        end
+    end
+end
+
+activity BatteryUI ()
+    repeat
+        neo.clear(OVERLAY_LAYER)
+
+        let level: nat8 = power.getBatteryLevel()
+        var col: Color
+        if level > 30 then
+            col = color.GREEN
+        elseif level > 10 then
+            col = color.YELLOW
+        else
+            col = color.RED
+        end
+
+        let ring: neo.PixelVector = neo.RINGS[3]
+        let increment: float32 = 100 / (ring.count as float32)
+        let cells: nat8 = maths.ceilf(level as float32 / increment) as! nat8
+        log.logInt32(cells as int32, {})
+        let partialRing: neo.PixelVector = { pixels = ring.pixels, count = cells }
+
+        neo.drawPixelVector(partialRing, col, OVERLAY_LAYER)
+        neo.show(OVERLAY_LAYER)
+
+        run Delay_s(1)
+    end
+end
+
+activity UIController (press: nat8)
+    cobegin
+        repeat
+            when press == button.PRESS_DOUBLE abort 
+                run TimedScript() 
+            end
+            when press == button.PRESS_DOUBLE abort 
+                run ManualScript(press) 
+            end
+        end
+    with
+        repeat
+            await press == button.PRESS_LONG
+
+            neo.setOverlayActive(true)
+            when press != button.PRESS_LONG abort
+                run BatteryUI()
+            end
+            neo.setOverlayActive(false)
+        end
+    end
+end
+
+// Power
+
+const POWER_LEVEL_OK: nat8 = 30
+const POWER_LEVEL_LOW: nat8 = 10
+const POWER_LEVEL_CRITICAL: nat8 = 0
+
+activity PowerReader () (level: nat8)
+    repeat
+        var batteryLevel: nat8 = power.getBatteryLevel()
+
+        @[CInput (binding = """spk_str("power-level")""", header = "modules/str.h")]
+        extern let STR_power_level: str.String
+
+        log.logStr(STR_power_level, { newline = false, colon = true, space = true})
+        log.logInt32(batteryLevel as int32, {})
+
+        if batteryLevel >= POWER_LEVEL_OK then
+            level = POWER_LEVEL_OK
+        elseif batteryLevel >= POWER_LEVEL_LOW then
+            level = POWER_LEVEL_LOW
+        else
+            level = POWER_LEVEL_CRITICAL
+        end
+
+        run Delay_s(5)
+    end
+end
+
+activity PowerIndicator (level: nat8)
+    repeat
+        speaker.playTone(6000, 20)
+        run Delay_ms(300)
+        speaker.playTone(6000, 20)
+
+        if level == POWER_LEVEL_CRITICAL then
+            run Delay_ms(200)
+            speaker.playTone(8000, 50)
+            run Delay_ms(200)
+            speaker.playTone(8000, 50)
+            run Delay_ms(200)
+            speaker.playTone(8000, 50)
+
+            run Delay_s(5)
+        else
+            run Delay_s(20)
+        end
+    end
+end
+
+activity PowerIndicatorController (level: nat8)
+    repeat
+        if level == POWER_LEVEL_OK then
+            await level != POWER_LEVEL_OK
+        end
+        when level == POWER_LEVEL_OK abort
+            run PowerIndicator(level)
+        end
+    end
+end
+
+activity PowerObserver ()
+    var level: nat8
+    cobegin 
+        run PowerReader()(level)
+    with 
+        run PowerIndicatorController(level) 
+    end
+end
+
+// Main
+
+@[EntryPoint]
+activity Main ()
+    neo.init()
+
+    let btnA = button.makeButton(0)
+    var press: nat8
+
+    cobegin 
+        run button.PressRecognizer(btnA)(press)
+    with 
+        run UIController(press)
+    with 
+        run PowerObserver()
+    end
+end

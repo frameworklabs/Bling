@@ -1,0 +1,125 @@
+// module:  button
+// project: spook
+
+import _ "/modules/delay" exposes Delay_ms
+import str "/modules/string"
+import log "/modules/logging"
+
+module exposes 
+    PRESS_NO, PRESS_SHORT, PRESS_DOUBLE, PRESS_LONG,
+    Button, makeButton,
+    PressRecognizer, OneShotPressRecognizer, PressReporter
+
+// Press
+
+// typealias Press = nat8
+
+const PRESS_NO: nat8 = 0
+const PRESS_SHORT: nat8 = 1
+const PRESS_DOUBLE: nat8 = 2
+const PRESS_LONG: nat8 = 3
+
+// Button
+
+struct Button
+    let ptr: bits32
+    let idx: nat8
+end
+
+@[CFunction (binding = "spk_button_get_button_ptr($1)", header = "modules/button.ext.h")]
+extern function getButtonPtr (num: nat8) returns bits32
+
+function makeButton (num: nat8) returns Button
+    return { ptr = getButtonPtr(num), idx = num }
+end
+
+@[CFunction (binding = "spk_button_was_pressed($1->ptr)", header = "modules/button.ext.h")]
+extern function wasPressed (button: Button) returns bool
+
+@[CFunction (binding = "spk_button_was_released($1->ptr)", header = "modules/button.ext.h")]
+extern function wasReleased (button: Button) returns bool
+
+// Recognizer
+    
+function wasPressedX (button: Button) returns bool
+    return wasPressed(button)
+end
+
+function wasReleasedX (button: Button) returns bool
+    return wasReleased(button)
+end
+
+/// Recognizes single, double and long presses for the given button
+activity PressRecognizer (button: Button) (press: nat8)
+    repeat
+        press = PRESS_NO
+
+        await wasPressed(button)
+
+        var wasReleased = false
+        var wasPressed = false
+
+        cobegin weak
+            run Delay_ms(300)
+        with weak
+            await wasReleasedX(button)
+            wasReleased = true
+
+            await wasPressedX(button)
+            wasPressed = true
+        end
+
+        if wasPressed then
+            press = PRESS_DOUBLE
+            await true
+        elseif wasReleased then
+            press = PRESS_SHORT
+            await true
+        else
+            press = PRESS_LONG
+            await wasReleasedX(button)
+        end
+    end
+end
+
+activity OneShotPressRecognizer (button: Button) returns nat8
+    var press: nat8
+    cobegin weak
+        run PressRecognizer(button)(press)
+    with
+        await press != PRESS_NO
+    end
+    return press
+end
+
+activity PressReporter (button: Button, press: nat8)
+
+    @[CConst (binding = """spk_str("short")""", header = "modules/str.h")]
+    extern const STR_short: str.String
+
+    @[CConst (binding = """spk_str("double")""", header = "modules/str.h")]
+    extern const STR_double: str.String
+
+    @[CConst (binding = """spk_str("long")""", header = "modules/str.h")]
+    extern const STR_long: str.String
+
+    @[CInput (binding = """spk_str("button")""", header = "modules/str.h")]
+    extern let STR_button: str.String
+
+    repeat
+        var txt: str.String
+        if press == PRESS_SHORT then
+            txt = STR_short
+        elseif press == PRESS_DOUBLE then
+            txt = STR_double
+        elseif press == PRESS_LONG then
+            txt = STR_long
+        end
+        if not str.isEmpty(txt) then
+            log.logStr(STR_button, { space = true, newline = false })
+            log.logNat32(button.idx, { colon = true, space = true, newline = false })
+            log.logStr(txt, {})
+        end
+        await true
+    end
+end

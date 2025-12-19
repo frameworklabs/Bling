@@ -1,0 +1,16 @@
+// module:  logging
+// project: spook
+
+import _ "/modules/string" exposes String
+import _ "/modules/logging_types" exposes Format
+
+module exposes logInt32, logNat32, logStr
+
+@[CFunction (binding = "spk_logging_log_int32($1, $2)", header = "modules/logging.ext.h")]
+extern function logInt32 (num: int32, format: Format)
+
+@[CFunction (binding = "spk_logging_log_nat32($1, $2)", header = "modules/logging.ext.h")]
+extern function logNat32 (num: nat32, format: Format)
+
+@[CFunction (binding = "spk_logging_log_str($1, $2)", header = "modules/logging.ext.h")]
+extern function logStr (what: String, format: Format)
