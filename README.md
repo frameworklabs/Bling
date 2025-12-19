@@ -2,7 +2,9 @@
 
 A Christmas Tree pendant in Blech using Capsule and Neo HEX from M5Stack.
 
-https://github.com/user-attachments/assets/007dcc38-62ee-4f01-b776-ea65607c18a4
+
+https://github.com/user-attachments/assets/ea4edfd1-407f-4f2f-affe-abda66855014
+
 
 The above clip shows 3 out of 9 effects implemented.
 
