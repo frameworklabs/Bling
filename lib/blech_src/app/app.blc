@@ -222,16 +222,7 @@ function progressHead () (head: neo.GridPoint, dir: nat8) returns bool
 end
 
 function addHead (head: neo.GridPoint, len: nat8) (tail: neo.PixelVector)
-    if tail.count >= len then
-        var i: nat8
-        while i < len - 1 repeat
-            tail.pixels[i] = tail.pixels[i + 1]
-            i = i + 1
-        end
-        tail.count = len - 1
-    end
-    tail.pixels[tail.count] = neo.getGridPointPixel(head)
-    tail.count = tail.count + 1
+    neo.appendToPixelVector(neo.getGridPointPixel(head), len)(tail)
 end
 
 activity SingleShotSnake (vsync: bool)
@@ -283,10 +274,10 @@ end
 function drawStars (ring: nat8, colors: [NUM_GRAND_FINAL_COLORS]Color, colorStart: nat8) (stars: [neo.NUM_GRID_DIRS]neo.PixelVector, screen: neo.Screen)
     var dir: nat8
     repeat                
-        stars[dir].count = ring + 1
+        stars[dir].count = ring
+        stars[dir].start = 1
         let colorIndex: nat8 = (dir + colorStart) % neo.NUM_GRID_DIRS
         neo.drawPixelVectorToScreen(stars[dir], colors[colorIndex])(screen)
-        neo.drawPixelToScreen(neo.CENTER_PIXEL, colors[neo.NUM_GRID_DIRS])(screen)
         dir = dir + 1
     until dir == neo.NUM_GRID_DIRS end
     neo.drawScreen(screen, MAIN_LAYER, true)

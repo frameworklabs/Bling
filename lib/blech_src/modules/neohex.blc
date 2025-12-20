@@ -8,7 +8,7 @@ module exposes
     MAIN_LAYER, OVERLAY_LAYER,
     init, setOverlayActive, clear, show,
     NUM_PIXELS, CENTER_PIXEL, incPixel, makeRandomPixel, drawPixel, isPixelCleared,
-    PixelVector, drawPixelVector, drawPixelVectorAt,
+    PixelVector, drawPixelVector, drawPixelVectorAt, appendToPixelVector, 
     incPixelVectorIndex, makeRandomPixelVectorIndex,
     NUM_STAR_RINGS, STAR_RINGS, incStarRingIndex,
     NUM_GRID_ROWS, GRID, getRandomRow, 
@@ -74,19 +74,36 @@ end
 struct PixelVector
     var pixels: [NUM_PIXELS]nat8
     var count: nat8
+    var start: nat8
+end
+
+function idxToAbsIdx (pv: PixelVector, idx: nat8) returns nat8
+    return (idx + pv.start) % NUM_PIXELS
+end
+
+function appendToPixelVector (px: nat8, len: nat8) (pv: PixelVector)
+    if pv.count == maths.minNat(len, NUM_PIXELS) then
+        pv.start = (pv.start + 1) % NUM_PIXELS
+    else
+        pv.count = pv.count + 1
+    end
+    let absIdx = idxToAbsIdx(pv, pv.count - 1)
+    pv.pixels[absIdx] = px
 end
 
 function drawPixelVector (pv: PixelVector, col: Color, layer: nat8)
+    var absIdx = pv.start
     var i: nat8 = 0
     while i < pv.count repeat
-        drawPixel(pv.pixels[i], col, layer)
+        drawPixel(pv.pixels[absIdx], col, layer)
+        absIdx = (absIdx + 1) % NUM_PIXELS
         i = i + 1
     end
 end
 
 function drawPixelVectorAt (pv: PixelVector, idx: nat8, col: Color, layer: nat8)
     if idx < pv.count then
-        drawPixel(pv.pixels[idx], col, layer)
+        drawPixel(pv.pixels[idxToAbsIdx(pv, idx)], col, layer)
     end
 end
 
@@ -235,12 +252,14 @@ function drawPixelToScreen (px: nat8, col: Color) (screen: Screen)
 end
 
 function drawPixelVectorToScreen (pv: PixelVector, col: Color) (screen: Screen)
+    var absIdx = pv.start
     var i: nat8 = 0
     while i < pv.count repeat
-        let px: nat8 = pv.pixels[i]
+        let px: nat8 = pv.pixels[absIdx]
         if px < NUM_PIXELS then
             screen.colors[px] = col
         end
+        absIdx = (absIdx + 1) % NUM_PIXELS
         i = i + 1
     end
 end

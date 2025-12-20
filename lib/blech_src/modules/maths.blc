@@ -2,10 +2,27 @@
 // project: spook
 
 module exposes 
+    maxNat, minNat,
     sinf, cosf, 
     ceilf, floorf,
     random, randomNat8, randomNat16, randomNat32, randomBool,
     incModuloNat8
+
+function maxNat (a: nat32, b: nat32) returns nat32
+    if a >= b then
+        return a
+    else
+        return b
+    end
+end
+
+function minNat (a: nat32, b: nat32) returns nat32
+    if a <= b then
+        return a
+    else
+        return b
+    end
+end
 
 @[CFunction (binding = "sinf($1)", header = "math.h")]
 extern function sinf (phi: float32) returns float32
