@@ -29,7 +29,7 @@ activity Presenter (clock_ms: nat32, extraDelay: bool) (vsync: bool)
     end
 end
 
-// Effects
+// Walk Effect
 
 activity Walk ()
     var pixel: nat8 = 0
@@ -48,6 +48,8 @@ activity Walk ()
     end
 end
 
+// Star Effect
+
 activity Star ()
     repeat
         let col: Color = color.makeRandomColor()
@@ -64,6 +66,8 @@ activity Star ()
     end
 end
 
+// Random Dots Effect
+
 activity RandomDots ()
     repeat
         neo.clear(MAIN_LAYER)
@@ -73,6 +77,8 @@ activity RandomDots ()
         run Delay_ms(100)
     end
 end
+
+// Snow Effect
 
 activity SnowFlake (vsync: bool)
     repeat
@@ -99,6 +105,8 @@ activity Snow ()
     with run SnowFlake(vsync)
     end
 end
+
+// Rings Effect
 
 activity Rings ()
     repeat
@@ -129,6 +137,8 @@ activity Rings ()
     end
 end
 
+// Circles Effect
+
 activity Circle (ring: nat8, vsync: bool)
     let pv: neo.PixelVector = neo.RINGS[ring]
     let col: Color = color.makeRandomColor()
@@ -152,6 +162,8 @@ activity Circles ()
     end
 end
 
+// Faders Effect
+
 activity Fader (pv: neo.PixelVector, vsync: bool)
     var level: nat8 = maths.randomNat8(255)
     var delta: int8; if maths.randomBool() then delta = 8 else delta = -8 end
@@ -172,7 +184,6 @@ activity Fader (pv: neo.PixelVector, vsync: bool)
     end
 end
 
-
 activity Faders ()
     param shape1: neo.PixelVector = { pixels = {15, 22, 23, 17, 10,  9}, count = 6 }
     param shape2: neo.PixelVector = { pixels = { 1,  2,  6}, count = 3 }
@@ -187,6 +198,8 @@ activity Faders ()
     with run Fader(shape4, vsync)
     end
 end
+
+// Snakes Effect
 
 function tryDir (dir: nat8) (head: neo.GridPoint) returns bool
     var nextHead: neo.GridPoint
@@ -261,6 +274,8 @@ activity Snakes ()
     end
 end
 
+// Grand Final Effect
+
 const NUM_GRAND_FINAL_COLORS: nat8 = neo.NUM_GRID_DIRS + 1
 
 function fillRandomColors () (colors: [NUM_GRAND_FINAL_COLORS]Color)
@@ -330,11 +345,116 @@ activity GrandFinal ()
     end
 end
 
+// Diffusion Effect
+
+function applyEmissions (emissions: neo.Screen) (screen: neo.Screen)
+    var i: nat8
+    while i < neo.NUM_PIXELS repeat
+        let color = emissions.colors[i]
+        if color.value != 0 then
+            screen.colors[i] = color
+        end
+        i = i + 1
+    end
+end
+
+struct ColorCombiner
+    var val: color.YCrCb
+end
+
+function addCenter (col: Color) (comb: ColorCombiner) 
+    comb.val = color.colorToYCrCb(col)
+end 
+
+function addNeighbor (col: Color) (comb: ColorCombiner)
+    let val = color.colorToYCrCb(col)
+    let yDelta = val.y - comb.val.y
+    if yDelta > 0 then
+        comb.val.y = comb.val.y + yDelta * 0.15
+        comb.val.cr = val.cr
+        comb.val.cb = val.cb
+    end
+end 
+
+function getCombination (comb: ColorCombiner) returns Color
+    var res = comb.val
+    return color.yCrCbToColor(res)
+end
+
+function diffuse () (screen: neo.Screen)
+    let prevScreen = screen
+    var row: nat8
+    while row < neo.NUM_GRID_ROWS repeat
+        let numCols = neo.getNumGridCols(row)
+        var col: nat8
+        while col < numCols repeat
+            let center: neo.GridPoint = { row = row, col = col }
+            let centerColor = neo.getGridPointColorFromScreen(center, prevScreen)
+            var combiner: ColorCombiner
+            addCenter(centerColor)(combiner)
+            var dir: nat8
+            while dir < neo.NUM_GRID_DIRS repeat
+                var neighbor: neo.GridPoint
+                let validNeighbor = neo.getGridPointInDir(center, dir)(neighbor) 
+                if validNeighbor then
+                    let neighborColor = neo.getGridPointColorFromScreen(neighbor, prevScreen)
+                    addNeighbor(neighborColor)(combiner)
+                end
+                dir = dir + 1
+            end
+            neo.drawGridPointToScreen(center, getCombination(combiner))(screen)
+            col = col + 1
+        end
+        row = row + 1
+    end
+end
+
+function decay () (screen: neo.Screen)  
+    var px: nat8
+    while px < neo.NUM_PIXELS repeat
+        var col = color.colorToYCrCb(screen.colors[px])
+        col.y = col.y * 0.90
+        screen.colors[px] = color.yCrCbToColor(col)
+        px = px + 1
+    end  
+end
+
+activity Diffusion ()
+    var emissions: neo.Screen
+    var emittedCount: nat64
+    var processedCount: nat64
+    var screen: neo.Screen
+
+    cobegin
+        repeat
+            if prev processedCount == emittedCount then
+                neo.clearScreen()(emissions)
+            end
+            let col = color.makeRandomColor()
+            neo.drawPixelToScreen(neo.makeRandomPixel(), col)(emissions)
+            emittedCount = emittedCount + 1
+            run Delay_ms(1000)
+        end
+    with
+        repeat
+            if emittedCount > processedCount then
+                applyEmissions(emissions)(screen)
+                processedCount = emittedCount
+            end
+            diffuse()(screen)
+            decay()(screen)
+            neo.drawScreen(screen, MAIN_LAYER, true)
+            run Delay_ms(40)
+        end
+    end
+end
+
 // Control
 
 activity Script (progress: bool)
     repeat
         when progress abort run GrandFinal() end
+        when progress abort run Diffusion() end
         when progress abort run Snakes() end
         when progress abort run Faders() end
         when progress abort run Circles() end
@@ -431,7 +551,7 @@ activity UIController (press: nat8)
     end
 end
 
-// Power
+// Low power warner
 
 const POWER_LEVEL_OK: nat8 = 30
 const POWER_LEVEL_LOW: nat8 = 10

@@ -26,7 +26,7 @@ void spk_logging_log_int32(blc_int32 num, blc_01modules01logging_types01_Format*
 }
 
 void spk_logging_log_nat32(blc_nat32 num, blc_01modules01logging_types01_Format* format) {
-    Serial.printf("%ul", num);
+    Serial.printf("%u", num);
     handle_format(*format);
 }
 

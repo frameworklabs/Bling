@@ -2,12 +2,17 @@
 // project: spook
 
 import maths "/modules/maths"
+import log "/modules/logging"
+import log_types "/modules/logging_types"
 
 module exposes 
     Color,
     BLACK, RED, YELLOW, GREEN, BLUE, WHITE,
+    getRed, getGreen, getBlue,
     makeRandomHue,
-    makeHSVColor, makeHueColor, makeRandomColor, makeWRGBColor, makeRGBColor, makeGrayColor
+    makeHSVColor, makeHueColor, makeRandomColor, makeWRGBColor, makeRGBColor, makeGrayColor,
+    YCrCb, colorToYCrCb, yCrCbToColor,
+    logColor
 
 struct Color
     let value: nat32
@@ -19,6 +24,18 @@ const YELLOW: Color = { value = 0xFF_00_FF }
 const GREEN: Color = { value = 0x00_FF_00 }
 const BLUE: Color = { value = 0x00_00_FF }
 const WHITE: Color = { value = 0xFF_FF_FF }
+
+function getRed (color: Color) returns nat8
+    return ((color.value as bits32 & 0xFF_00_00) >> 16) as! nat8
+end
+
+function getGreen (color: Color) returns nat8
+    return ((color.value as bits32 & 0xFF_00) >> 8) as! nat8
+end
+
+function getBlue (color: Color) returns nat8
+    return (color.value as bits32 & 0xFF) as! nat8
+end
 
 function makeWRGBColor(white: nat8, red: nat8, green: nat8, blue: nat8) returns Color
     let whiteBits = white as bits32 << 24
@@ -53,4 +70,51 @@ end
 
 function makeRandomColor() returns Color
     return makeHueColor(makeRandomHue())
+end
+
+struct YCrCb
+    var y: float32
+    var cr: float32
+    var cb: float32
+end
+
+function colorToYCrCb (val: Color) returns YCrCb
+    let r = getRed(val) as float32
+    let g = getGreen(val) as float32
+    let b = getBlue(val) as float32
+
+    let y  =  0.299 * r + 0.587 * g + 0.114 * b
+    let cb = -0.169 * r - 0.331 * g + 0.500 * b + 128
+    let cr =  0.500 * r - 0.419 * g - 0.081 * b + 128
+
+    return { y = y, cr = cr, cb = cb }
+end
+
+function clamp (val: float32) returns nat8
+    let v = maths.floorf(val + 0.5)
+    if v <= 0 then 
+        return 0
+    elseif v >= 255 then 
+        return 255
+    else
+        return v as! nat8
+    end
+end
+
+function yCrCbToColor(val: YCrCb) returns Color
+    let y = val.y
+    let pb = val.cb - 128.0
+    let pr = val.cr - 128.0
+
+    let r = y + 1.400 * pr
+    let g = y - 0.343 * pb - 0.711 * pr
+    let b = y + 1.765 * pb
+
+    return makeRGBColor(clamp(r), clamp(g), clamp(b))
+end
+
+function logColor (col: Color, fmt: log_types.Format)
+    log.logNat32(getRed(col), {newline = false, comma = true})
+    log.logNat32(getGreen(col), {newline = false, comma = true})
+    log.logNat32(getBlue(col), fmt)
 end

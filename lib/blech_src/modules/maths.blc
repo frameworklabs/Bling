@@ -2,7 +2,7 @@
 // project: spook
 
 module exposes 
-    maxNat, minNat,
+    maxNat, minNat, maxf, minf,
     sinf, cosf, 
     ceilf, floorf,
     random, randomNat8, randomNat16, randomNat32, randomBool,
@@ -17,6 +17,22 @@ function maxNat (a: nat32, b: nat32) returns nat32
 end
 
 function minNat (a: nat32, b: nat32) returns nat32
+    if a <= b then
+        return a
+    else
+        return b
+    end
+end
+
+function maxf (a: float32, b: float32) returns float32
+    if a >= b then
+        return a
+    else
+        return b
+    end
+end
+
+function minf (a: float32, b: float32) returns float32
     if a <= b then
         return a
     else
@@ -47,8 +63,11 @@ function randomNat16 (max_incl: nat16) returns nat16
     return (random() % (max_incl + 1)) as! nat16
 end
 
+const MAX_RAND_NAT32: nat32 = (1: bits32 << 31) as nat32 - 1
+
 function randomNat32 (max_incl: nat32) returns nat32
-    return random() % (max_incl + 1)
+    let val = maxNat(max_incl, MAX_RAND_NAT32)
+    return random() % (val + 1)
 end
 
 function randomBool () returns bool
